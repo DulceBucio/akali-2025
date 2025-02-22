@@ -5,6 +5,8 @@ import wpilib
 import wpilib.drive
 import phoenix5 
 
+servo_movement = 0
+
 class MyRobot(wpilib.TimedRobot):
     def robotInit(self):
         """This function is called upon program startup and should be used for any initialization code."""
@@ -19,10 +21,10 @@ class MyRobot(wpilib.TimedRobot):
         # Invert the right side if needed
         self.rightDrive.setInverted(True)
 
-        self.servo1 = wpilib.Servo(0)
-        self.servo2 = wpilib.Servo(1)
-        self.servo3 = wpilib.Servo(2)
-        self.servo4 = wpilib.Servo(3)
+        self.servoLF = wpilib.Servo(0)
+        self.servoLB = wpilib.Servo(1)
+        self.servoRF = wpilib.Servo(2)
+        self.servoRB = wpilib.Servo(3)
 
     def autonomousInit(self):
         """This function is run once each time the robot enters autonomous mode."""
@@ -36,41 +38,46 @@ class MyRobot(wpilib.TimedRobot):
         else:
             self.robotDrive.stopMotor()  
 
-    def teleopPeriodic(self):
-        """This function is called periodically during teleoperated mode."""
-        print("LeftY:", self.controller.getLeftY())
-        print("RightX:", self.controller.getRightX())
+    # def teleopPeriodic(self):   
+    #     # print("LeftY:", self.controller.getLeftY())
+    #     # print("RightX:", self.controller.getRightX())
 
-        self.robotDrive.arcadeDrive(
-            -self.controller.getLeftY(), -self.controller.getRightX()
-        )
+    #     servo_movement = self.controller.getRightX() + 0.5 # No remapping, keep -1 to 1
+    #     print("JOYSTICK:", self.controller.getRightX)
+    #     print(servo_movement)
+    #     opposite_servo_movement = 0.5 - servo_movement
+    #     print(opposite_servo_movement)
 
 
-    # Mecanica esa rara que no le entiendo y de la cual no estoy segura :D
-
-    # def teleopPeriodic(self):
-    #     """This function is called periodically during teleoperated mode."""
+    #     self.servoLB.set(0.5)
+    #     self.servoLF.set(0.5)
+    #     self.servoRB.set(0.5)
+    #     self.servoRF.set(0.5)
+    #     self.robotDrive.arcadeDrive(
+    #         -self.controller.getLeftY(), -self.controller.getRightX()
+    #     )
+    #     self.servoLF.set(servo_movement) # Los front van hacia 1 !!
+    #     self.servoLB.set(opposite_servo_movement)
+    #     self.servoRF.set(servo_movement)
+    #     self.servoRB.set(opposite_servo_movement)
     
-    #     forward = -self.controller.getLeftY()  # Forward/backward movement
-    #     turn = -self.controller.getRightX()  # Turning movement
-    
-    #     left_speed = forward + turn
-    #     right_speed = forward - turn
-    
-    #     if turn > 0:  # Turning right
-    #         right_speed *= 0.5  # Reduce right side speed
-    #     elif turn < 0:  # Turning left
-    #         left_speed *= 0.5  # Reduce left side speed
+    def teleopPeriodic(self):   
+        forward = -self.controller.getLeftY()
+        servo_movement = self.controller.getRightX() * 0.5 + 0.5  # Scale -1 to 1 -> 0 to 1 sabe
+        opposite_servo_movement = 1 - servo_movement  
 
-    #     self.leftDrive.set(left_speed)
-    #     self.rightDrive.set(right_speed)
+        print("Servo Movement (Front):", servo_movement)
+        print("Servo Movement (Back):", opposite_servo_movement)
 
-    #     # if self.controller.getAButton():
-    #     #     self.servo.set(1.0)  
-    #     # elif self.controller.getBButton():
-    #     #     self.servo.set(0.0)  
-    #     # else:
-    #     #     self.servo.set(0.5) 
+        self.leftDrive.set(forward)
+        self.rightDrive.set(forward)
+
+        # Set servo positions
+        self.servoLF.set(servo_movement)  # 0.5 to 1
+        self.servoRF.set(servo_movement)
+        #self.servoLB.set(opposite_servo_movement)  # 0.5 to 0
+        #self.servoRB.set(opposite_servo_movement)
+
 
 
 if __name__ == "__main__":
