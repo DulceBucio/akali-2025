@@ -5,7 +5,6 @@ import wpilib
 import wpilib.drive
 import phoenix5 
 
-servo_movement = 0
 
 class MyRobot(wpilib.TimedRobot):
     def robotInit(self):
@@ -13,6 +12,10 @@ class MyRobot(wpilib.TimedRobot):
 
         self.leftDrive = phoenix5.WPI_VictorSPX(2)  # YA QUEDARON LOS IDS NO MOVER BYE
         self.rightDrive = phoenix5.WPI_VictorSPX(12)
+
+        self.leftDrive.setSafetyEnabled(False)
+        self.rightDrive.setSafetyEnabled(False)
+
 
         self.robotDrive = wpilib.drive.DifferentialDrive(self.leftDrive, self.rightDrive)
         self.controller = wpilib.XboxController(0)
@@ -25,6 +28,9 @@ class MyRobot(wpilib.TimedRobot):
         self.servoLB = wpilib.Servo(1)
         self.servoRF = wpilib.Servo(2)
         self.servoRB = wpilib.Servo(3)
+
+        self.servo_movement_right = 0.5  
+        self.servo_movement_left = 0.5  
 
     def autonomousInit(self):
         """This function is run once each time the robot enters autonomous mode."""
@@ -63,18 +69,39 @@ class MyRobot(wpilib.TimedRobot):
     
     def teleopPeriodic(self):   
         forward = -self.controller.getLeftY()
-        servo_movement = self.controller.getRightX() * 0.5 + 0.5  # Scale -1 to 1 -> 0 to 1 sabe
-        opposite_servo_movement = 1 - servo_movement  
+        # servo_movement = self.controller.getRightX() * 0.5 + 0.5  # Scale -1 to 1 -> 0 to 1 sabe
+        # opposite_servo_movement = 1 - servo_movement  
 
-        print("Servo Movement (Front):", servo_movement)
-        print("Servo Movement (Back):", opposite_servo_movement)
+        # print("Servo Movement (Front):", servo_movement)
+        # print("Servo Movement (Back):", opposite_servo_movement)
 
         self.leftDrive.set(forward)
         self.rightDrive.set(forward)
+        
+        # LLANTA DERECHA
+        if self.controller.getRightBumper():
+            self.servo_movement_right += 0.01  # Small increments for smooth change
+        elif self.controller.getXButton():
+            self.servo_movement_right -= 0.01
+        # IZQ
+        elif self.controller.getLeftBumper():
+            self.servo_movement_left -= 0.01
+        elif self.controller.getBButton():
+            self.servo_movement_left += 0.01
 
-        # Set servo positions
-        self.servoLF.set(servo_movement)  # 0.5 to 1
-        self.servoRF.set(servo_movement)
+        # Ensure servo_movement stays in the valid range (0.0 to 1.0)
+        self.servo_movement_left = max(0.0, min(1.0, self.servo_movement_left))
+        self.servo_movement_right = max(0.0, min(1.0, self.servo_movement_right))
+
+        # print("Servo Movement:", self.servo_movement)
+
+        self.servoLF.set(self.servo_movement_left)
+        self.servoRF.set(self.servo_movement_right)
+
+        # print(self.servo_movement)
+        # # Set servo positions
+        # self.servoLF.set(self.servo_movement)  # 0.5 to 1
+        # self.servoRF.set(self.servo_movement)
         #self.servoLB.set(opposite_servo_movement)  # 0.5 to 0
         #self.servoRB.set(opposite_servo_movement)
 
