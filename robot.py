@@ -5,7 +5,8 @@ import wpilib
 import wpilib.drive
 import phoenix5 
 
-servo_movement = 0
+servo_movement_exterior = 0
+servo_movement_interior = 0
 
 class MyRobot(wpilib.TimedRobot):
     def robotInit(self):
@@ -48,20 +49,32 @@ class MyRobot(wpilib.TimedRobot):
     
     def teleopPeriodic(self):   
         forward = -self.controller.getLeftY()
-        servo_movement = max(0.2, min(self.controller.getRightX() * 0.5 + 0.5, 0.8))  # Scale -1 to 1 -> 0 to 1 sabe solo dios y yo sabemos pq esto funciona
-        opposite_servo_movement = 1 - servo_movement  
-
-        print("Servo Movement (Front):", servo_movement)
-        print("Servo Movement (Back):", opposite_servo_movement)
+        servo_movement_interior = max(0.2, min(self.controller.getRightX() * 0.5 + 0.5, 0.8))  # Scale -1 to 1 -> 0 to 1 sabe solo dios y yo sabemos pq esto funciona
+        servo_movement_exterior = servo_movement_interior * 0.53
+        opposite_servo_movement = 1 - servo_movement_interior
+        opposite_servo_movement_ext = 1 - servo_movement_exterior
+        
 
         self.leftDrive.set(forward)
         self.rightDrive.set(forward)
 
         # Set servo positions
-        self.servoLF.set(servo_movement)  # 0.5 to 1
-        self.servoRF.set(servo_movement)
-        self.servoLB.set(opposite_servo_movement)  # 0.5 to 0
-        self.servoRB.set(opposite_servo_movement)
+        if(self.controller.getRightBumperButton()):
+            self.servoLF.set(servo_movement_interior)  
+            self.servoRF.set(servo_movement_exterior)
+            self.servoLB.set(opposite_servo_movement)  
+            self.servoRB.set(opposite_servo_movement_ext)
+        elif (self.controller.getLeftBumperButton()):
+            self.servoLF.set(servo_movement_exterior)  
+            self.servoRF.set(servo_movement_interior)
+            self.servoLB.set(opposite_servo_movement_ext)  
+            self.servoRB.set(opposite_servo_movement)
+        elif (self.controller.getBButton()):
+            self.servoLF.set(0.5)
+            self.servoLB.set(0.5)
+            self.servoRF.set(0.5)
+            self.servoRF.set(0.5)   
+
 
 
 
