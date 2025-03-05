@@ -26,6 +26,7 @@ class MyRobot(wpilib.TimedRobot):
         self.servoRF = wpilib.Servo(2)
         self.servoRB = wpilib.Servo(8)
 
+        # servos a su 0
         self.servoLF.set(0.5)
         self.servoLB.set(0.5)
         self.servoRF.set(0.5)
@@ -44,33 +45,10 @@ class MyRobot(wpilib.TimedRobot):
             self.rightDrive.set(0.5)
         else:
             self.robotDrive.stopMotor()  
-
-    # def teleopPeriodic(self):   
-    #     # print("LeftY:", self.controller.getLeftY())
-    #     # print("RightX:", self.controller.getRightX())
-
-    #     servo_movement = self.controller.getRightX() + 0.5 # No remapping, keep -1 to 1
-    #     print("JOYSTICK:", self.controller.getRightX)
-    #     print(servo_movement)
-    #     opposite_servo_movement = 0.5 - servo_movement
-    #     print(opposite_servo_movement)
-
-
-    #     self.servoLB.set(0.5)
-    #     self.servoLF.set(0.5)
-    #     self.servoRB.set(0.5)
-    #     self.servoRF.set(0.5)
-    #     self.robotDrive.arcadeDrive(
-    #         -self.controller.getLeftY(), -self.controller.getRightX()
-    #     )
-    #     self.servoLF.set(servo_movement) # Los front van hacia 1 !!
-    #     self.servoLB.set(opposite_servo_movement)
-    #     self.servoRF.set(servo_movement)
-    #     self.servoRB.set(opposite_servo_movement)
     
     def teleopPeriodic(self):   
         forward = -self.controller.getLeftY()
-        servo_movement = self.controller.getRightX() * 0.5 + 0.5  # Scale -1 to 1 -> 0 to 1 sabe
+        servo_movement = max(0.2, min(self.controller.getRightX() * 0.5 + 0.5, 0.8))  # Scale -1 to 1 -> 0 to 1 sabe solo dios y yo sabemos pq esto funciona
         opposite_servo_movement = 1 - servo_movement  
 
         print("Servo Movement (Front):", servo_movement)
