@@ -1,11 +1,10 @@
 # Ultima modificación: 07/02/2025
-# Cualquier cosa preguntenle a Dultez (No le sabe)
 
 import wpilib
 import wpilib.drive
-import phoenix5 
-
-servo_movement = 0
+import phoenix5
+import threading
+import socketio
 
 class MyRobot(wpilib.TimedRobot):
     def robotInit(self):
@@ -17,8 +16,6 @@ class MyRobot(wpilib.TimedRobot):
         self.robotDrive = wpilib.drive.DifferentialDrive(self.leftDrive, self.rightDrive)
         self.controller = wpilib.XboxController(0)
         self.timer = wpilib.Timer()
-
-        # Invert the right side if needed
         self.rightDrive.setInverted(True)
 
         self.servoLF = wpilib.Servo(0)
@@ -30,26 +27,46 @@ class MyRobot(wpilib.TimedRobot):
         self.servoLF.set(0.5)
         self.servoLB.set(0.5)
         self.servoRF.set(0.5)
-        self.servoRF.set(0.5)
+        self.servoRB.set(0.5)
 
 
+        self.sio = socketio.Client()
+        self.current_command = "stop" 
+
+        self.sio.on('movement_command', self.handle_movement_command)
+
+        try:
+            self.sio.connect('http://10.59.48.227:8080') 
+        except Exception as e:
+            print("Error connecting to WebSocket server:", e)
+
+        # Run the WebSocket listener in a separate thread
+        threading.Thread(target=self.sio.wait, daemon=True).start()
+
+    def handle_movement_command(self, data):
+        self.current_command = data.get('command', 'stop')
+        print("Received movement command:", self.current_command)
 
     def autonomousInit(self):
-        """This function is run once each time the robot enters autonomous mode."""
         self.timer.restart()
 
     def autonomousPeriodic(self):
-        """This function is called periodically during autonomous."""
-        if self.timer.get() < 2.0:
+        if self.current_command == "forward":
             self.leftDrive.set(0.5)
             self.rightDrive.set(0.5)
-        else:
-            self.robotDrive.stopMotor()  
-    
-    def teleopPeriodic(self):   
+        elif self.current_command == "left":
+            self.leftDrive.set(-0.3)
+            self.rightDrive.set(0.3)
+        elif self.current_command == "right":
+            self.leftDrive.set(0.3)
+            self.rightDrive.set(-0.3)
+        else:  # "stop" or unknown command
+            self.robotDrive.stopMotor()
+
+    def teleopPeriodic(self):
         forward = -self.controller.getLeftY()
-        servo_movement = max(0.2, min(self.controller.getRightX() * 0.5 + 0.5, 0.8))  # Scale -1 to 1 -> 0 to 1 sabe solo dios y yo sabemos pq esto funciona
-        opposite_servo_movement = 1 - servo_movement  
+        servo_movement = max(0.2, min(self.controller.getRightX() * 0.5 + 0.5, 0.8))  # Scale -1 to 1 -> 0 to 1
+        opposite_servo_movement = 1 - servo_movement
 
         print("Servo Movement (Front):", servo_movement)
         print("Servo Movement (Back):", opposite_servo_movement)
@@ -57,12 +74,10 @@ class MyRobot(wpilib.TimedRobot):
         self.leftDrive.set(forward)
         self.rightDrive.set(forward)
 
-        # Set servo positions
-        self.servoLF.set(servo_movement)  # 0.5 to 1
+        self.servoLF.set(servo_movement)
         self.servoRF.set(servo_movement)
-        self.servoLB.set(opposite_servo_movement)  # 0.5 to 0
+        self.servoLB.set(opposite_servo_movement)
         self.servoRB.set(opposite_servo_movement)
-
 
 
 if __name__ == "__main__":
