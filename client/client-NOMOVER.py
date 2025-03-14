@@ -1,18 +1,36 @@
-# Ultima modificación: 07/02/2025
-
 import wpilib
 import wpilib.drive
 import phoenix5
 import threading
-import socketio
+import asyncio
+import websockets
+import json
+import requests
+import time
+SERVER_URL = "http://10.59.48.227:8080/commands"
+
+def fetch_commands():
+    """Fetch movement commands from the HTTP server."""
+    try:
+        response = requests.get(SERVER_URL, timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("command", "stop")
+    except requests.RequestException as e:
+        print(f"Failed to fetch command: {e}")
+    return "stop"
+
+def command_listener(robot):
+    """Continuously fetch commands and update the robot."""
+    while True:
+        robot.current_command = fetch_commands()
+        print("Received command:", robot.current_command)
+        time.sleep(0.5)  # Adjust polling rate as needed
 
 class MyRobot(wpilib.TimedRobot):
     def robotInit(self):
-        """This function is called upon program startup and should be used for any initialization code."""
-
-        self.leftDrive = phoenix5.WPI_VictorSPX(2)  # YA QUEDARON LOS IDS NO MOVER BYE
+        self.leftDrive = phoenix5.WPI_VictorSPX(2)
         self.rightDrive = phoenix5.WPI_VictorSPX(12)
-
         self.robotDrive = wpilib.drive.DifferentialDrive(self.leftDrive, self.rightDrive)
         self.controller = wpilib.XboxController(0)
         self.timer = wpilib.Timer()
@@ -23,27 +41,36 @@ class MyRobot(wpilib.TimedRobot):
         self.servoRF = wpilib.Servo(2)
         self.servoRB = wpilib.Servo(8)
 
-        # servos a su 0
         self.servoLF.set(0.5)
         self.servoLB.set(0.5)
         self.servoRF.set(0.5)
         self.servoRB.set(0.5)
 
+        self.current_command = "stop"
 
-        self.sio = socketio.Client()
-        self.current_command = "stop" 
+        # Start a separate thread for fetching commands
+        self.command_thread = threading.Thread(target=command_listener, args=(self,))
+        self.command_thread.daemon = True
+        self.command_thread.start()
 
-        self.sio.on('movement_command', self.handle_movement_command)
+    async def listen_for_commands(self):
+        """Listen for movement commands from the WebSocket server."""
+        async with websockets.connect(SERVER_URL) as websocket:
+            print("Connected to the server")
 
-        try:
-            self.sio.connect('http://10.59.48.227:8080') 
-        except Exception as e:
-            print("Error connecting to WebSocket server:", e)
+            while True:
+                message = await websocket.recv()
 
-        # Run the WebSocket listener in a separate thread
-        threading.Thread(target=self.sio.wait, daemon=True).start()
+                # Parse the message (assuming it's in JSON format)
+                try:
+                    data = json.loads(message)
+                    if "command" in data:
+                        self.handle_movement_command(data)
+                except json.JSONDecodeError:
+                    print(f"Received non-JSON message: {message}")
 
     def handle_movement_command(self, data):
+        """Handle the received movement command."""
         self.current_command = data.get('command', 'stop')
         print("Received movement command:", self.current_command)
 
@@ -52,15 +79,19 @@ class MyRobot(wpilib.TimedRobot):
 
     def autonomousPeriodic(self):
         if self.current_command == "forward":
+            print("Moving forward")
             self.leftDrive.set(0.5)
             self.rightDrive.set(0.5)
         elif self.current_command == "left":
+            print("Turning left")
             self.leftDrive.set(-0.3)
             self.rightDrive.set(0.3)
         elif self.current_command == "right":
+            print("Turning right")
             self.leftDrive.set(0.3)
             self.rightDrive.set(-0.3)
         else:  # "stop" or unknown command
+            print("Stopping")
             self.robotDrive.stopMotor()
 
     def teleopPeriodic(self):
@@ -78,7 +109,6 @@ class MyRobot(wpilib.TimedRobot):
         self.servoRF.set(servo_movement)
         self.servoLB.set(opposite_servo_movement)
         self.servoRB.set(opposite_servo_movement)
-
 
 if __name__ == "__main__":
     wpilib.run(MyRobot)

@@ -1,19 +1,21 @@
 import cv2
 import numpy as np
-import time
-from flask import Flask, Response
+from flask import Flask, Response, jsonify, request
 from flask_socketio import SocketIO, emit
 from Capture import Capture
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")  # Allow CORS if needed
 
+# Initialize video capture
 cap1 = Capture()
+movement_command = "stop"  # Global variable to store the last command
 
-color_lower = np.array([0, 100, 100])  
+color_lower = np.array([0, 100, 100])  # Red in HSV
 color_upper = np.array([10, 255, 255])
-densidad_umbral = 10  
+densidad_umbral = 10  # Threshold for obstacle detection
 
+# Function to process sections of the image (left, center, right)
 def process_section(section):
     gray = cv2.cvtColor(section, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -25,56 +27,65 @@ def process_section(section):
     closed = cv2.morphologyEx(eroded, cv2.MORPH_CLOSE, kernel)
 
     contornos, _ = cv2.findContours(closed.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(section, contornos, -1, (0, 0, 255), 2)
     return len(contornos)
 
-def detect_color(frame):
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, color_lower, color_upper)
-    contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    area_total = sum(cv2.contourArea(cnt) for cnt in contornos)
-    return area_total > 3000  
+# Function to generate movement command
+def detect_obstacles_and_color(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
 
-def process_frame_and_generate_command(frame):
-    roi_width = 400
-    roi_height = 300
-    height, width, _ = frame.shape
+    height, width = frame.shape[:2]
+    center_x = width // 2
+    left_region = edges[:, :center_x]
+    right_region = edges[:, center_x:]
 
-    x_start = (width - roi_width) // 2
-    y_start = (height - roi_height) // 2
-    x_end = x_start + roi_width
-    y_end = y_start + roi_height
+    left_intensity = np.sum(left_region)
+    right_intensity = np.sum(right_region)
+    threshold = 100000  # Adjust as needed
 
-    roi_frame = frame[y_start:y_end, x_start:x_end]
-    third_width = roi_width // 3
-    left_section = roi_frame[:, :third_width]
-    middle_section = roi_frame[:, third_width:2 * third_width]
-    right_section = roi_frame[:, 2 * third_width:]
+    if left_intensity < threshold and right_intensity < threshold:
+        movement_command = 'forward'
+    elif left_intensity > right_intensity:
+        movement_command = 'right'
+    else:
+        movement_command = 'left'
 
-    left_count = process_section(left_section)
-    center_count = process_section(middle_section)
-    right_count = process_section(right_section)
-
-    if max(left_count, center_count, right_count) > densidad_umbral:
-        return 'stop'
+    center_region = frame[height // 3: 2 * height // 3, center_x - 50:center_x + 50]
+    hsv = cv2.cvtColor(center_region, cv2.COLOR_BGR2HSV)
     
-    if left_count < center_count and left_count < right_count:
-        return 'left'
-    elif center_count <= left_count and center_count <= right_count:
-        return 'forward'
-    elif right_count < left_count and right_count < center_count:
-        return 'right'
+    red_lower = np.array([0, 120, 70])
+    red_upper = np.array([10, 255, 255])
+    yellow_lower = np.array([25, 100, 100])
+    yellow_upper = np.array([35, 255, 255])
+    green_lower = np.array([50, 100, 100])
+    green_upper = np.array([70, 255, 255])
     
-    return 'stop'
+    mask_red = cv2.inRange(hsv, red_lower, red_upper)
+    mask_yellow = cv2.inRange(hsv, yellow_lower, yellow_upper)
+    mask_green = cv2.inRange(hsv, green_lower, green_upper)
 
+    if np.sum(mask_red) > 1000:
+        movement_command = 'stop'
+    elif np.sum(mask_yellow) > 1000:
+        movement_command = 'stop'
+    elif np.sum(mask_green) > 1000:
+        movement_command = 'forward'
+
+    return movement_command
+
+# Function to generate video stream
 def generate(capture):
+    global movement_command  # Ensure updates affect the global variable
+
     while True:
         ret, frame = capture.get_frame()
         if ret:
-            movement_command = process_frame_and_generate_command(frame)
+            movement_command = detect_obstacles_and_color(frame)  # Update command
 
+            # Emit updated movement command to WebSocket clients
             socketio.emit('movement_command', {'command': movement_command})
-
+            print(movement_command)
             (flag, encodedImage) = cv2.imencode(".jpg", frame)
             if not flag:
                 continue
@@ -86,14 +97,31 @@ def video1():
     return Response(generate(cap1),
                     mimetype="multipart/x-mixed-replace; boundary=frame")
 
+@app.route("/commands", methods=['POST'])
+def send_commands():
+    global movement_command
+
+    data = request.json
+    if not data or "command" not in data:
+        return jsonify({"error": "Missing 'command' in request"}), 400
+
+    movement_command = data["command"]
+    socketio.emit('movement_command', {'command': movement_command})
+    
+    return jsonify({"status": "Command sent", "command": movement_command}), 200
+
+@app.route("/commands", methods=['GET'])
+def get_commands():
+    return jsonify({'command': movement_command}), 200
 
 @socketio.on('connect')
 def handle_connect():
-    print("Client connected")
+    print("Client connected") 
 
 @socketio.on('disconnect')
 def handle_disconnect():
     print("Client disconnected")
 
 if __name__ == '__main__':
+    # REMOVE generate(cap1) here! It must be only used inside Response()
     socketio.run(app, host='0.0.0.0', port=8080, debug=False, use_reloader=False)
