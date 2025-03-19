@@ -105,6 +105,15 @@ class MyRobot(wpilib.TimedRobot):
             self.servoRF.set(0.7)
             self.servoLB.set(0.3)
             self.servoRB.set(0.3)
+
+        elif self.current_command == "backward":
+            self.servoLF.set(0.7)
+            self.servoRF.set(0.7)
+            self.servoLB.set(0.3)
+            self.servoRB.set(0.3)
+            self.leftDrive.set(-0.5)
+            self.rightDrive.set(-0.5)
+            # time.sleep(10)
         else:  # "stop" or unknown command
             print("Stopping")
             self.robotDrive.stopMotor()
