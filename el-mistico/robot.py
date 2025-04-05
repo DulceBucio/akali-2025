@@ -12,7 +12,7 @@ class MyRobot(wpilib.TimedRobot):
         """This function is called upon program startup and should be used for any initialization code."""
 
         self.leftDrive = phoenix5.WPI_VictorSPX(2)  # YA QUEDARON LOS IDS NO MOVER BYE
-        self.rightDrive = phoenix5.WPI_VictorSPX(12)
+        self.rightDrive = phoenix5.WPI_VictorSPX(10)
 
         self.robotDrive = wpilib.drive.DifferentialDrive(self.leftDrive, self.rightDrive)
         self.controller = wpilib.XboxController(0)
