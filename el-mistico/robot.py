@@ -41,7 +41,7 @@ class MyRobot(wpilib.TimedRobot):
         # tool
         # furula !!!
         self.toolMov = wpilib.PWMMotorController("VictorSP", 2) # sube y baja
-        self.toolSpeed = phoenix5.VictorSPX(12) # este id todavía no lo saco CAN, gira
+        self.toolSpeed = phoenix5.WPI_VictorSPX(12) # este id todavía no lo saco CAN, gira
     def autonomousInit(self):
         """This function is run once each time the robot enters autonomous mode."""
         self.timer.restart()
@@ -64,10 +64,10 @@ class MyRobot(wpilib.TimedRobot):
         print("Servo Movement (Front):", servo_movement)
         print("Servo Movement (Back):", opposite_servo_movement)
 
-        self.leftDrive.set(0.5)
-        self.rightDrive.set(0.5)
-        self.controllerLeft.set(0.5)
-        self.controllerRight.set(0.5)
+        self.leftDrive.set(forward)
+        self.rightDrive.set(forward)
+        self.controllerLeft.set(forward)
+        self.controllerRight.set(forward)
 
         # Set servo positions
         self.servoLF.set(servo_movement)  # 0.5 to 1
@@ -79,11 +79,30 @@ class MyRobot(wpilib.TimedRobot):
         # bumpers posición, triggers velocidad
 
         # movimiento, bajar y subir
-        # if self.controller.getLeftBumperButton():
-        #     self.toolMov.set(0.5)
-        # elif self.controller.getRightBumperButton():
-        #     self.toolMov.set(-0.5)
+        if self.controller.getLeftBumperButton():
+            self.toolMov.set(0.5)
+        elif self.controller.getLeftBumperButtonReleased():
+            self.toolMov.stopMotor()
+        elif self.controller.getRightBumperButton():
+            self.toolMov.set(-0.5)
+        elif self.controller.getRightBumperButtonReleased():
+            self.toolMov.stopMotor()
 
+        right_trigger = self.controller.getRightTriggerAxis()
+        left_trigger = self.controller.getLeftTriggerAxis()
+
+        # Scale triggers to use full range
+        right_trigger_scaled = right_trigger * 1.2  # Adjust multiplier as needed
+        left_trigger_scaled = left_trigger * 1.2
+        right_trigger_scaled = min(right_trigger_scaled, 0.6)  # Cap at 1.0
+        left_trigger_scaled = min(left_trigger_scaled, 0.6)    # Cap at 1.0
+
+        if right_trigger_scaled > 0:
+            self.toolSpeed.set(right_trigger_scaled)
+        elif left_trigger_scaled > 0:
+            self.toolSpeed.set(-left_trigger_scaled)
+        else:
+            self.toolSpeed.set(0)
 
 if __name__ == "__main__":
     wpilib.run(MyRobot)
