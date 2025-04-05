@@ -5,7 +5,7 @@ import json
 import websockets
 import time
 
-async def run_client(uri="ws://localhost:8801", duration=60):
+async def run_client(uri="ws://10.59.48.166:8801", duration=60):
     """
     Connect to the LiDAR WebSocket server and print received data.
     
