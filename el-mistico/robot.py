@@ -4,15 +4,15 @@
 import wpilib
 import wpilib.drive
 import phoenix5 
-import rev
 
 servo_movement = 0
+enable_movement = True
 
 class MyRobot(wpilib.TimedRobot):
     def robotInit(self):
         """This function is called upon program startup and should be used for any initialization code."""
 
-        # movimiento general
+        # movimiento general, CAN VictorSPX 
         self.leftDrive = phoenix5.WPI_VictorSPX(2)  # YA QUEDARON LOS IDS NO MOVER BYE
         self.rightDrive = phoenix5.WPI_VictorSPX(10)
 
@@ -22,11 +22,11 @@ class MyRobot(wpilib.TimedRobot):
 
         self.rightDrive.setInverted(True)
 
-        # ids en orden
+        # ids en orden, PWM VictorSP
         self.controllerLeft = wpilib.PWMMotorController("VictorSP", 7)
         self.controllerRight = wpilib.PWMMotorController("VictorSP", 4)
 
-        #sistema de giro
+        #sistema de giro, servos por PWM
         self.servoLF = wpilib.Servo(1)
         self.servoLB = wpilib.Servo(9)
         self.servoRF = wpilib.Servo(0)
@@ -40,8 +40,9 @@ class MyRobot(wpilib.TimedRobot):
 
         # tool
         # furula !!!
-        self.toolMov = wpilib.PWMMotorController("VictorSP", 2) # sube y baja
-        self.toolSpeed = phoenix5.WPI_VictorSPX(12) # este id todavía no lo saco CAN, gira
+        self.toolMov = wpilib.PWMMotorController("VictorSP", 6) # PWM, sube y baja
+        self.toolSpeed = phoenix5.WPI_VictorSPX(12) # CAN, ID 12
+        self.toolSample = wpilib.Servo(5) # PWM, cambiar entre samples
     def autonomousInit(self):
         """This function is run once each time the robot enters autonomous mode."""
         self.timer.restart()
@@ -55,36 +56,58 @@ class MyRobot(wpilib.TimedRobot):
             self.robotDrive.stopMotor()  
 
     
-    def teleopPeriodic(self):   
-        forward = -self.controller.getLeftY() # ¿-1 a 1?
-        servo_movement = max(0.2, min(self.controller.getRightX() * 0.5 + 0.5, 0.8))  # Scale -1 to 1 -> 0 to 1 sabe solo dios y yo sabemos pq esto funciona
-        opposite_servo_movement = 1 - servo_movement  
+    def teleopPeriodic(self): 
+        global enable_movement
 
-        print(forward)
-        print("Servo Movement (Front):", servo_movement)
-        print("Servo Movement (Back):", opposite_servo_movement)
+        if enable_movement:
+            forward = -self.controller.getLeftY() # ¿-1 a 1?
+            servo_movement = max(0.2, min(self.controller.getRightX() * 0.5 + 0.5, 0.8))  # Scale -1 to 1 -> 0 to 1 sabe solo dios y yo sabemos pq esto funciona
+            opposite_servo_movement = 1 - servo_movement  
 
-        self.leftDrive.set(forward)
-        self.rightDrive.set(forward)
-        self.controllerLeft.set(forward)
-        self.controllerRight.set(forward)
+            # print(forward)
+            # print("Servo Movement (Front):", servo_movement)
+            # print("Servo Movement (Back):", opposite_servo_movement)
 
-        # Set servo positions
-        self.servoLF.set(servo_movement)  # 0.5 to 1
-        self.servoRF.set(servo_movement)
-        self.servoLB.set(opposite_servo_movement)  # 0.5 to 0
-        self.servoRB.set(opposite_servo_movement)
+            self.leftDrive.set(forward)
+            self.rightDrive.set(forward)
+            self.controllerLeft.set(forward)
+            self.controllerRight.set(forward)
+
+            # Set servo positions
+            self.servoLF.set(servo_movement)  # 0.5 to 1
+            self.servoRF.set(servo_movement)
+            self.servoLB.set(opposite_servo_movement)  # 0.5 to 0
+            self.servoRB.set(opposite_servo_movement)
+
+            if self.controller.getAButtonPressed():
+                enable_movement = False
+
+        else:
+            # disable adelante y atras
+            self.leftDrive.stopMotor()
+            self.rightDrive.stopMotor()
+            self.controllerLeft.stopMotor()
+            self.controllerRight.stopMotor()
+
+            #disable servos
+            self.servoLB.set(0.5)
+            self.servoRB.set(0.5)
+            self.servoRF.set(0.5)
+            self.servoLF.set(0.5)
+
+            if self.controller.getAButtonPressed():
+                enable_movement = True
 
         # tool
         # bumpers posición, triggers velocidad
 
         # movimiento, bajar y subir
         if self.controller.getLeftBumperButton():
-            self.toolMov.set(0.5)
+            self.toolMov.set(0.6)
         elif self.controller.getLeftBumperButtonReleased():
             self.toolMov.stopMotor()
         elif self.controller.getRightBumperButton():
-            self.toolMov.set(-0.5)
+            self.toolMov.set(-0.6)
         elif self.controller.getRightBumperButtonReleased():
             self.toolMov.stopMotor()
 
@@ -92,10 +115,10 @@ class MyRobot(wpilib.TimedRobot):
         left_trigger = self.controller.getLeftTriggerAxis()
 
         # Scale triggers to use full range
-        right_trigger_scaled = right_trigger * 1.2  # Adjust multiplier as needed
+        right_trigger_scaled = right_trigger * 1.2 
         left_trigger_scaled = left_trigger * 1.2
-        right_trigger_scaled = min(right_trigger_scaled, 0.6)  # Cap at 1.0
-        left_trigger_scaled = min(left_trigger_scaled, 0.6)    # Cap at 1.0
+        right_trigger_scaled = min(right_trigger_scaled, 0.6)  # Cap at 0.6
+        left_trigger_scaled = min(left_trigger_scaled, 0.6)    # Cap at 0.6
 
         if right_trigger_scaled > 0:
             self.toolSpeed.set(right_trigger_scaled)
@@ -103,6 +126,15 @@ class MyRobot(wpilib.TimedRobot):
             self.toolSpeed.set(-left_trigger_scaled)
         else:
             self.toolSpeed.set(0)
+
+        if self.controller.getYButtonPressed():
+            self.toolSample.set(0)
+        if self.controller.getXButtonPressed():
+            self.toolSample.set(0.5) #centro
+        if self.controller.getBButtonPressed():
+            self.toolSample.set(0.8)
+
+        
 
 if __name__ == "__main__":
     wpilib.run(MyRobot)
